@@ -1,0 +1,1 @@
+{"name":"@moones/ai","version":"1.0.0","type":"module","main":"dist/index.js","scripts":{"build":"tsc -p tsconfig.json"},"dependencies":{"@moones/config":"workspace:*"},"devDependencies":{"typescript":"^5.5.4"}}

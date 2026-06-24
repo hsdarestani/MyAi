@@ -1,0 +1,1 @@
+import { describe, expect, it } from 'vitest';import { roundToNearest } from '@moones/billing';describe('billing',()=>{it('rounds to nearest step',()=>{expect(roundToNearest(1240,500)).toBe(1000);expect(roundToNearest(1260,500)).toBe(1500);});});
