@@ -1,0 +1,1 @@
+{"name":"@moones/bot","version":"1.0.0","type":"module","scripts":{"dev":"tsx watch src/index.ts","build":"tsc -p tsconfig.json","start":"node dist/index.js"},"dependencies":{"@moones/config":"workspace:*","@moones/shared":"workspace:*","telegraf":"^4.16.3","tsx":"^4.19.0"},"devDependencies":{"typescript":"^5.5.4"}}

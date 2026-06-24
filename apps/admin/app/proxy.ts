@@ -1,0 +1,1 @@
+export const API=process.env.NEXT_PUBLIC_API_URL||'http://api:4000';export async function api(path:string){try{return await fetch(API+path,{cache:'no-store',headers:{cookie:''}}).then(r=>r.json())}catch{return {items:[],cards:{}}}}

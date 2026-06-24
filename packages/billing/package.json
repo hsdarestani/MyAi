@@ -1,0 +1,1 @@
+{"name":"@moones/billing","version":"1.0.0","type":"module","main":"dist/index.js","scripts":{"build":"tsc -p tsconfig.json"},"dependencies":{"@moones/db":"workspace:*"},"devDependencies":{"typescript":"^5.5.4"}}

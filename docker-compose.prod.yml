@@ -1,0 +1,5 @@
+services:
+  api: { restart: always }
+  bot: { restart: always }
+  admin: { restart: always }
+  nginx: { restart: always, ports: ["80:80", "443:443"] }
