@@ -1,1 +1,1 @@
-export default { output: 'standalone', reactStrictMode: true, async rewrites(){return [{source:'/api/:path*',destination:`${process.env.NEXT_PUBLIC_API_URL||'http://localhost:4000'}/api/:path*`}]}};
+export default { output: 'standalone', reactStrictMode: true, async rewrites(){const api=process.env.NEXT_PUBLIC_API_URL||'http://localhost:4000';return [{source:'/api/:path*',destination:`${api}/api/:path*`},{source:'/health',destination:`${api}/health`}]}};
