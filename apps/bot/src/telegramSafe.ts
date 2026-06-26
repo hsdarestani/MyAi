@@ -1,0 +1,11 @@
+export const INVALID_CALLBACK='noop_invalid_callback';
+const persian=/[\u0600-\u06FF]/;
+function invalidCallback(v:any){if(typeof v!=='string')return true;if(Buffer.byteLength(v,'utf8')>64)return true;if(/[\r\n]/.test(v))return true;const s=v.trim();if((s.startsWith('{')&&s.endsWith('}'))||(s.startsWith('[')&&s.endsWith(']')))return true;if(persian.test(v))return true;return false}
+export function sanitizeInlineKeyboard<T=any>(markup:T):T{const root:any=markup;if(!root)return markup;const rm=root.reply_markup||root;const kb=rm?.inline_keyboard;if(!Array.isArray(kb))return markup;for(const row of kb){if(!Array.isArray(row))continue;for(const btn of row){if(!btn||!('callback_data'in btn))continue;if(invalidCallback(btn.callback_data)){console.error('Invalid Telegram callback_data sanitized',{buttonText:btn.text,byteLength:Buffer.byteLength(String(btn.callback_data??''),'utf8')});btn.callback_data=INVALID_CALLBACK}}}return markup}
+function extra(extra:any){return sanitizeInlineKeyboard(extra)}
+export async function safeReply(ctx:any,text:string,extraArg?:any){try{return await ctx.reply(text,extra(extraArg))}catch(e){console.error('Telegram reply failed',e);return null}}
+export async function safeSendMessage(ctx:any,chatId:any,text:string,extraArg?:any){try{return await ctx.telegram.sendMessage(chatId,text,extra(extraArg))}catch(e){console.error('Telegram sendMessage failed',e);return null}}
+export async function safeSendPhoto(ctx:any,chatId:any,photo:any,extraArg?:any){try{return await ctx.telegram.sendPhoto(chatId,photo,extra(extraArg))}catch(e){console.error('Telegram sendPhoto failed',e);return null}}
+export async function safeReplyWithPhoto(ctx:any,photo:any,extraArg?:any){try{return await ctx.replyWithPhoto(photo,extra(extraArg))}catch(e){console.error('Telegram replyWithPhoto failed',e);return null}}
+export async function safeEditMessage(ctx:any,...args:any[]){try{const last=args[args.length-1];if(last&&typeof last==='object')args[args.length-1]=extra(last);return await ctx.telegram.editMessageText(...args)}catch(e){console.error('Telegram editMessage failed',e);return null}}
+export async function safeDeleteMessage(ctx:any,...args:any[]){try{return ctx.deleteMessage?await ctx.deleteMessage(...args):await ctx.telegram.deleteMessage(...args)}catch(e){console.error('Telegram deleteMessage failed',e);return null}}
