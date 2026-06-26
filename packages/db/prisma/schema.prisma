@@ -18,3 +18,4 @@ model PricingConfig { id String @id @default(cuid()) taskType TaskType @unique m
 model AIRouteConfig { id String @id @default(cuid()) taskType TaskType @unique provider String model String fallbackProvider String? fallbackModel String? enabled Boolean @default(true) metadata Json? updatedAt DateTime @updatedAt }
 model Setting { key String @id value Json updatedAt DateTime @updatedAt }
 model AuditLog { id String @id @default(cuid()) adminId String? action String entityType String entityId String? metadata Json? createdAt DateTime @default(now()) admin Admin? @relation(fields:[adminId], references:[id]) }
+model PendingBotRequest { id String @id @default(cuid()) userId String telegramId String taskType TaskType prompt String estimatedCost Int selectedModel String createdAt DateTime @default(now()) expiresAt DateTime @@unique([telegramId]) @@index([expiresAt]) }
