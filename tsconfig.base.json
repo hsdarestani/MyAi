@@ -1,1 +1,35 @@
-{"compilerOptions":{"target":"ES2022","module":"NodeNext","moduleResolution":"NodeNext","strict":true,"esModuleInterop":true,"skipLibCheck":true,"resolveJsonModule":true,"declaration":true,"outDir":"dist"}}
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "outDir": "dist",
+    "baseUrl": ".",
+    "types": [
+      "node"
+    ],
+    "paths": {
+      "@moones/db": [
+        "packages/db/src/index.ts"
+      ],
+      "@moones/config": [
+        "packages/config/src/index.ts"
+      ],
+      "@moones/shared": [
+        "packages/shared/src/index.ts"
+      ],
+      "@moones/ai": [
+        "packages/ai/src/index.ts"
+      ],
+      "@moones/billing": [
+        "packages/billing/src/index.ts"
+      ]
+    },
+    "ignoreDeprecations": "6.0"
+  }
+}
