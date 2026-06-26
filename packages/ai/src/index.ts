@@ -1,8 +1,8 @@
 export type TaskType='chat'|'image'|'video';
 export type ProviderCost={amountToman:number;estimated?:boolean;usd?:number};
 export interface AITextProvider { generateText(input:{prompt:string;model?:string;locale?:string}):Promise<any> };
-export interface AIImageProvider { generateImage(input:{prompt:string;model?:string}):Promise<any> };
-export interface AIVideoProvider { quoteVideo?(input:{prompt:string;model?:string}):Promise<any>; createVideoJob(input:{prompt:string;model?:string}):Promise<any>; getVideoJob(jobId:string,model?:string):Promise<any> };
+export interface AIImageProvider { generateImage(input?:any):Promise<any> };
+export interface AIVideoProvider { quoteVideo?(input?:any):Promise<any>; createVideoJob(input?:any):Promise<any>; getVideoJob(jobId?:string,model?:string):Promise<any> };
 
 type ChatProviderOptions={provider:string;baseUrl:string;apiKey?:string;model:string;estimatedCostToman?:number};
 type VeniceModel={id:string;model?:string;name?:string;type?:string;traits?:string[];capabilities?:any;pricing?:any;[key:string]:any};
@@ -80,3 +80,54 @@ export class VeniceProvider extends OpenAICompatibleProvider{constructor(model?:
 export type ProviderMode='mock'|'venice'|'openai-compatible'|'auto';
 export function getAIProvider(mode:ProviderMode|string=process.env.AI_PROVIDER_MODE||'venice',model?:string){if(mode==='auto'||mode==='venice') return new VeniceProvider(model); if(mode==='openai-compatible') return new OpenAICompatibleProvider({model}); if(mode==='mock') return new MockProvider(); throw new Error(`Unsupported AI provider: ${mode}`)}
 export const friendlyNoModelMessage=NO_MODEL_FA;
+
+export type SmartTaskType = 'chat'|'image'|'video'|'code'|'document'|'file_generation'|'summarization'|'vision';
+export type SafetyProfile = 'safe_default'|'creative'|'low_refusal_allowed'|'strict'|'adult_text_allowed_where_legal'|'image_video_strict';
+export type OutputPlan = 'telegram_text'|'telegram_markdown'|'telegram_code_block'|'telegram_document'|'telegram_photo'|'telegram_video'|'mixed';
+export interface PromptClassification { taskType: SmartTaskType; intent: string; language: string; needsFile: boolean; needsCode: boolean; needsImage: boolean; needsVideo: boolean; needsLongContext: boolean; requestedSafetyProfile: SafetyProfile; allowedAdultText: boolean; blockedReason?: string; suggestedOutputPlan: OutputPlan; tags: string[]; }
+const faRe=/[\u0600-\u06FF]/;
+const sexual=/(nude|naked|nsfw|porn|explicit sex|sexual|erotic|boobs?|breasts?|nipples?|vagina|penis|برهنه|لخت|سکس|جنسی|پورن|شهوت|پستان|آلت)/i;
+const minor=/(minor|child|teen|underage|kid|young girl|young boy|کودک|نوجوان|زیر ?سن|بچه|دختر بچه|پسر بچه)/i;
+const unsafe=/(doxx|malware|phishing|steal password|خودکشی|ساخت بمب|بدافزار|فیشینگ|کلاهبرداری|دزدیدن رمز)/i;
+export class PromptClassifier {
+  classify(prompt:string, hintedTask?:SmartTaskType): PromptClassification {
+    const p=prompt||''; const lower=p.toLowerCase(); const tags:string[]=[];
+    const needsImage=/(image|photo|picture|draw|generate.*art|عکس|تصویر|نقاشی|بساز.*عکس|ساخت عکس|شبیه قبلی|همین سبک)/i.test(p) || hintedTask==='image';
+    const needsVideo=/(video|clip|animation|ویدیو|کلیپ|انیمیشن|ساخت ویدیو)/i.test(p) || hintedTask==='video';
+    const needsCode=/(code|typescript|javascript|python|react|sql|bug|function|کد|برنامه|اسکریپت|تابع|دیباگ)/i.test(p) || hintedTask==='code';
+    const needsFile=/(file|document|pdf|markdown|txt|یه فایل|فایل آماده|سند|داکیومنت|رزومه)/i.test(p) || hintedTask==='file_generation' || hintedTask==='document';
+    if(faRe.test(p))tags.push('persian'); if(needsCode)tags.push('coding'); if(needsFile)tags.push('file');
+    const asksLessCensored=/(uncensored|less censored|بدون سانسور|کمتر سانسور|رک و بی‌پرده)/i.test(p);
+    const visual=needsImage||needsVideo; const sexualHit=sexual.test(p); const minorHit=minor.test(p); const unsafeHit=unsafe.test(p);
+    let blockedReason: string|undefined;
+    if(visual&&sexualHit) blockedReason='blocked_sexual_visual';
+    if(visual&&minorHit) blockedReason='blocked_minor_visual_risk';
+    if(unsafeHit) blockedReason='blocked_unsafe_request';
+    let taskType:SmartTaskType=hintedTask||'chat';
+    if(needsVideo)taskType='video'; else if(needsImage)taskType='image'; else if(needsCode)taskType='code'; else if(needsFile)taskType='file_generation';
+    const allowedAdultText=!visual&&sexualHit&&!minorHit&&!unsafeHit;
+    const outputPlan:OutputPlan=needsVideo?'telegram_video':needsImage?'telegram_photo':needsFile?'telegram_document':needsCode?'telegram_code_block':'telegram_text';
+    return {taskType,intent:taskType,language:faRe.test(p)?'fa':'unknown',needsFile,needsCode,needsImage,needsVideo,needsLongContext:p.length>6000,requestedSafetyProfile:asksLessCensored||allowedAdultText?'low_refusal_allowed':'safe_default',allowedAdultText,blockedReason,suggestedOutputPlan:outputPlan,tags};
+  }
+}
+export interface RouterModel { provider:string; modelId:string; displayName?:string; enabled?:boolean; capabilities:string[]; taskTypes:SmartTaskType[]; safetyProfiles:SafetyProfile[]; qualityScore?:number; speedScore?:number; costScore?:number; persianScore?:number; codingScore?:number; imageScore?:number; videoScore?:number; priority?:number; inputCostUsdPer1M?:number|null; outputCostUsdPer1M?:number|null; imageCostUsd?:number|null; videoCostUsd?:number|null; performance?:{successCount?:number; failCount?:number; avgLatencyMs?:number; recentFailureCount?:number}|null; }
+export interface SelectModelInput { userId:string; threadId?:string; taskType:SmartTaskType; prompt:string; desiredOutput?:string; safetyProfile?:SafetyProfile; userPreference?:'faster'|'cheaper'|'higher_quality'|'less_censored'|'safer'; needsCodeFormatting?:boolean; needsFileOutput?:boolean; needsLongContext?:boolean; referenceAssetIds?:string[]; models?:RouterModel[]; walletBalance?:number; confirmationThreshold?:number; }
+export class ModelRouter {
+  constructor(private classifier=new PromptClassifier()){}
+  selectModel(input:SelectModelInput){
+    const classification=this.classifier.classify(input.prompt,input.taskType); const safetyDecision={allowed:!classification.blockedReason, blockedReason:classification.blockedReason, profile:input.safetyProfile||classification.requestedSafetyProfile};
+    if(!safetyDecision.allowed) return {provider:null,model:null,reason:'safety_block',estimatedCost:0,requiresConfirmation:false,fallbackCandidates:[],safetyDecision,outputPlan:classification.suggestedOutputPlan,classification};
+    const needCaps=new Set<string>();
+    if(['chat','summarization','document','file_generation','code'].includes(classification.taskType)) needCaps.add('text');
+    if(classification.taskType==='code') needCaps.add('coding'); if(classification.needsImage) needCaps.add(classification.tags.includes('similar')?'image_editing':'image_generation'); if(classification.needsVideo) needCaps.add('video_generation'); if(classification.needsFile) needCaps.add('file_output'); if(classification.language==='fa') needCaps.add('persian_quality'); if(classification.needsLongContext||input.needsLongContext) needCaps.add('long_context'); if((input.userPreference==='less_censored'||classification.requestedSafetyProfile==='low_refusal_allowed')&&classification.allowedAdultText) needCaps.add('low_refusal_allowed_content');
+    const models=(input.models||defaultRouterModels()).filter(m=>m.enabled!==false&&m.taskTypes.includes(classification.taskType)&&[...needCaps].every(c=>m.capabilities.includes(c)||c==='persian_quality'));
+    const scored=models.map(m=>({m,score:this.score(m,input,classification)})).sort((a,b)=>b.score-a.score);
+    const selected=scored[0]?.m; const fallbackCandidates=scored.slice(1,4).map(x=>({provider:x.m.provider,model:x.m.modelId,score:x.score}));
+    if(!selected) return {provider:null,model:null,reason:'no_model',estimatedCost:0,requiresConfirmation:false,fallbackCandidates:[],safetyDecision:{...safetyDecision,allowed:false,blockedReason:'no_model'},outputPlan:classification.suggestedOutputPlan,classification};
+    const estimatedCost=this.estimate(selected,classification.taskType); const threshold=input.confirmationThreshold??10000;
+    return {provider:selected.provider,model:selected.modelId,reason:`selected by task/capability score for ${classification.taskType}`,estimatedCost,requiresConfirmation:Boolean(input.walletBalance!==undefined&&estimatedCost>threshold),fallbackCandidates,safetyDecision,outputPlan:classification.suggestedOutputPlan,classification};
+  }
+  private score(m:RouterModel,input:SelectModelInput,c:PromptClassification){let s=100-(m.priority??100)+(m.qualityScore??5)*4+(m.persianScore??5)*(c.language==='fa'?5:1)+(m.codingScore??5)*(c.needsCode?6:0)+(m.imageScore??5)*(c.needsImage?6:0)+(m.videoScore??5)*(c.needsVideo?6:0)+(m.costScore??5)*(input.userPreference==='cheaper'?5:1)+(m.speedScore??5)*(input.userPreference==='faster'?5:1); const p=m.performance; if(p){const total=(p.successCount||0)+(p.failCount||0); if(total)s+=((p.successCount||0)/total)*20; s-= (p.recentFailureCount||0)*10; s-= Math.min(10,Math.floor((p.avgLatencyMs||0)/3000));} if(input.userPreference==='higher_quality')s+=(m.qualityScore??5)*8; return s;}
+  private estimate(m:RouterModel,t:SmartTaskType){if(t==='image')return Math.ceil((m.imageCostUsd||0.04)*60000*2)||5000; if(t==='video')return Math.ceil((m.videoCostUsd||0.25)*60000*2)||25000; return 1000;}
+}
+export function defaultRouterModels():RouterModel[]{return [{provider:'venice',modelId:process.env.VENICE_TEXT_MODEL||'auto',enabled:true,capabilities:['text','reasoning','persian_quality','telegram_formatting','long_context'],taskTypes:['chat','summarization','document'],safetyProfiles:['safe_default','creative'],qualityScore:7,persianScore:8,priority:50},{provider:'venice',modelId:process.env.VENICE_TEXT_MODEL||'auto',enabled:true,capabilities:['text','reasoning','coding','file_output','json_mode','telegram_formatting','persian_quality'],taskTypes:['code','file_generation','document'],safetyProfiles:['safe_default','strict'],qualityScore:7,codingScore:8,priority:45},{provider:'venice',modelId:process.env.VENICE_LOW_REFUSAL_TEXT_MODEL||process.env.VENICE_TEXT_MODEL||'auto',enabled:Boolean(process.env.VENICE_LOW_REFUSAL_TEXT_MODEL),capabilities:['text','low_refusal_allowed_content','persian_quality'],taskTypes:['chat'],safetyProfiles:['low_refusal_allowed','adult_text_allowed_where_legal'],qualityScore:6,persianScore:7,priority:60},{provider:'venice',modelId:process.env.VENICE_IMAGE_MODEL||'z-image-turbo',enabled:true,capabilities:['image_generation','image_editing','persian_quality'],taskTypes:['image'],safetyProfiles:['image_video_strict','safe_default'],imageScore:8,priority:40,imageCostUsd:0.04},{provider:'venice',modelId:process.env.VENICE_VIDEO_MODEL||'auto',enabled:true,capabilities:['video_generation'],taskTypes:['video'],safetyProfiles:['image_video_strict','safe_default'],videoScore:6,priority:70,videoCostUsd:0.25}];}

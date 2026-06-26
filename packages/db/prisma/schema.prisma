@@ -1,21 +1,334 @@
-generator client { provider = "prisma-client-js" }
-datasource db { provider = "postgresql" url = env("DATABASE_URL") }
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
 enum UserStatus { active blocked }
 enum LedgerType { TOPUP ADMIN_ADJUSTMENT RESERVATION RESERVATION_RELEASE USAGE_CHARGE REFUND PAYMENT_FAILED }
-enum TaskType { chat image video }
+enum TaskType { chat image video code document file_generation summarization vision }
 enum UsageStatus { pending completed failed refunded }
 enum JobStatus { pending processing completed failed canceled refunded }
 enum PaymentStatus { pending successful failed rejected }
 enum PaymentReceiptStatus { pending approved rejected }
-model User { id String @id @default(cuid()) telegramId String @unique username String? firstName String? lastName String? languageCode String? phone String? walletBalance Int @default(0) status UserStatus @default(active) createdAt DateTime @default(now()) updatedAt DateTime @updatedAt lastActiveAt DateTime? costConfirmationThreshold Int? costConfirmationEnabled Boolean @default(true) ledger WalletLedger[] payments Payment[] usages AIUsage[] jobs AIJob[] paymentReceipts PaymentReceipt[] }
-model Admin { id String @id @default(cuid()) email String @unique passwordHash String role String @default("owner") createdAt DateTime @default(now()) updatedAt DateTime @updatedAt ledger WalletLedger[] audits AuditLog[] }
-model WalletLedger { id String @id @default(cuid()) userId String type LedgerType amount Int balanceBefore Int balanceAfter Int description String metadata Json? createdAt DateTime @default(now()) createdByAdminId String? user User @relation(fields:[userId], references:[id]) admin Admin? @relation(fields:[createdByAdminId], references:[id]) @@index([userId, createdAt]) }
-model PaymentReceipt { id String @id @default(cuid()) userId String telegramFileId String? telegramMessageId String? claimedAmount Int? approvedAmount Int? status PaymentReceiptStatus @default(pending) note String? adminNote String? createdAt DateTime @default(now()) updatedAt DateTime @updatedAt reviewedAt DateTime? reviewedByAdminId String? metadata Json? user User @relation(fields:[userId], references:[id]) @@index([status, createdAt]) @@index([userId, createdAt]) }
-model Payment { id String @id @default(cuid()) userId String provider String amount Int status PaymentStatus @default(pending) paymentUrl String? externalReference String? metadata Json? createdAt DateTime @default(now()) updatedAt DateTime @updatedAt user User @relation(fields:[userId], references:[id]) }
-model AIUsage { id String @id @default(cuid()) userId String taskType TaskType status UsageStatus @default(pending) userPromptPreview String internalProvider String? internalModel String? estimatedCost Int? reservedAmount Int? finalUserCharge Int? providerCost Int? grossMargin Int? usageMetadata Json? errorMessage String? confirmationRequired Boolean @default(false) confirmed Boolean @default(false) createdAt DateTime @default(now()) updatedAt DateTime @updatedAt user User @relation(fields:[userId], references:[id]) @@index([taskType, createdAt]) }
-model AIJob { id String @id @default(cuid()) userId String taskType TaskType status JobStatus @default(pending) provider String? model String? externalJobId String? prompt String resultUrl String? reservedAmount Int? finalCost Int? errorMessage String? metadata Json? createdAt DateTime @default(now()) updatedAt DateTime @updatedAt user User @relation(fields:[userId], references:[id]) }
-model PricingConfig { id String @id @default(cuid()) taskType TaskType @unique minCharge Int fixedBaseFee Int @default(0) markupMultiplier Float @default(2) highCostThreshold Int @default(10000) maxWithoutConfirmation Int @default(10000) roundingStep Int @default(500) enabled Boolean @default(true) updatedAt DateTime @updatedAt }
-model AIRouteConfig { id String @id @default(cuid()) taskType TaskType @unique provider String model String fallbackProvider String? fallbackModel String? enabled Boolean @default(true) metadata Json? updatedAt DateTime @updatedAt }
+enum ThreadType { chat image video mixed code document }
+enum MessageRole { user assistant system tool }
+enum OutputType { text image video file code }
+enum AssetType { image video file code }
+
+model User {
+  id String @id @default(cuid())
+  telegramId String @unique
+  username String?
+  firstName String?
+  lastName String?
+  languageCode String?
+  phone String?
+  walletBalance Int @default(0)
+  status UserStatus @default(active)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  lastActiveAt DateTime?
+  costConfirmationThreshold Int?
+  costConfirmationEnabled Boolean @default(true)
+  ledger WalletLedger[]
+  payments Payment[]
+  usages AIUsage[]
+  jobs AIJob[]
+  paymentReceipts PaymentReceipt[]
+  threads ConversationThread[]
+  messages ConversationMessage[]
+  assets GeneratedAsset[]
+}
+
+model Admin {
+  id String @id @default(cuid())
+  email String @unique
+  passwordHash String
+  role String @default("owner")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ledger WalletLedger[]
+  audits AuditLog[]
+}
+
+model WalletLedger {
+  id String @id @default(cuid())
+  userId String
+  type LedgerType
+  amount Int
+  balanceBefore Int
+  balanceAfter Int
+  description String
+  metadata Json?
+  createdAt DateTime @default(now())
+  createdByAdminId String?
+  user User @relation(fields: [userId], references: [id])
+  admin Admin? @relation(fields: [createdByAdminId], references: [id])
+  @@index([userId, createdAt])
+}
+
+model PaymentReceipt {
+  id String @id @default(cuid())
+  userId String
+  telegramFileId String?
+  telegramMessageId String?
+  claimedAmount Int?
+  approvedAmount Int?
+  status PaymentReceiptStatus @default(pending)
+  note String?
+  adminNote String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  reviewedAt DateTime?
+  reviewedByAdminId String?
+  metadata Json?
+  user User @relation(fields: [userId], references: [id])
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+}
+
+model Payment {
+  id String @id @default(cuid())
+  userId String
+  provider String
+  amount Int
+  status PaymentStatus @default(pending)
+  paymentUrl String?
+  externalReference String?
+  metadata Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id])
+}
+
+model AIUsage {
+  id String @id @default(cuid())
+  userId String
+  taskType TaskType
+  status UsageStatus @default(pending)
+  userPromptPreview String
+  internalProvider String?
+  internalModel String?
+  estimatedCost Int?
+  reservedAmount Int?
+  finalUserCharge Int?
+  providerCost Int?
+  grossMargin Int?
+  usageMetadata Json?
+  errorMessage String?
+  confirmationRequired Boolean @default(false)
+  confirmed Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id])
+  messages ConversationMessage[]
+  @@index([taskType, createdAt])
+}
+
+model AIJob {
+  id String @id @default(cuid())
+  userId String
+  taskType TaskType
+  status JobStatus @default(pending)
+  provider String?
+  model String?
+  externalJobId String?
+  prompt String
+  resultUrl String?
+  reservedAmount Int?
+  finalCost Int?
+  errorMessage String?
+  metadata Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id])
+}
+
+model PricingConfig {
+  id String @id @default(cuid())
+  taskType TaskType @unique
+  minCharge Int
+  fixedBaseFee Int @default(0)
+  markupMultiplier Float @default(2)
+  highCostThreshold Int @default(10000)
+  maxWithoutConfirmation Int @default(10000)
+  roundingStep Int @default(500)
+  enabled Boolean @default(true)
+  updatedAt DateTime @updatedAt
+}
+
+model AIRouteConfig {
+  id String @id @default(cuid())
+  taskType TaskType @unique
+  provider String
+  model String
+  fallbackProvider String?
+  fallbackModel String?
+  enabled Boolean @default(true)
+  metadata Json?
+  updatedAt DateTime @updatedAt
+}
+
 model Setting { key String @id value Json updatedAt DateTime @updatedAt }
-model AuditLog { id String @id @default(cuid()) adminId String? action String entityType String entityId String? metadata Json? createdAt DateTime @default(now()) admin Admin? @relation(fields:[adminId], references:[id]) }
-model PendingBotRequest { id String @id @default(cuid()) userId String telegramId String taskType TaskType prompt String estimatedCost Int selectedModel String createdAt DateTime @default(now()) expiresAt DateTime @@unique([telegramId]) @@index([expiresAt]) }
+model AuditLog { id String @id @default(cuid()) adminId String? action String entityType String entityId String? metadata Json? createdAt DateTime @default(now()) admin Admin? @relation(fields: [adminId], references: [id]) }
+
+model PendingBotRequest {
+  id String @id @default(cuid())
+  userId String
+  telegramId String
+  taskType TaskType
+  threadId String?
+  prompt String
+  estimatedCost Int
+  selectedModel String
+  selectedProvider String @default("auto")
+  request Json?
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  @@unique([telegramId])
+  @@index([expiresAt])
+}
+
+model ModelProvider {
+  id String @id @default(cuid())
+  name String @unique
+  displayName String
+  enabled Boolean @default(true)
+  baseUrl String?
+  apiKeyEnvName String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  models AIModel[]
+}
+
+model AIModel {
+  id String @id @default(cuid())
+  providerId String
+  modelId String
+  displayName String
+  enabled Boolean @default(true)
+  capabilities Json
+  taskTypes Json
+  safetyProfiles Json
+  qualityScore Int @default(5)
+  speedScore Int @default(5)
+  costScore Int @default(5)
+  persianScore Int @default(5)
+  codingScore Int @default(5)
+  imageScore Int @default(5)
+  videoScore Int @default(5)
+  contextWindow Int?
+  inputCostUsdPer1M Float?
+  outputCostUsdPer1M Float?
+  imageCostUsd Float?
+  videoCostUsd Float?
+  priority Int @default(100)
+  metadata Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  provider ModelProvider @relation(fields: [providerId], references: [id])
+  performance ModelPerformance[]
+  @@unique([providerId, modelId])
+}
+
+model ModelPerformance {
+  id String @id @default(cuid())
+  modelId String
+  taskType TaskType
+  successCount Int @default(0)
+  failCount Int @default(0)
+  avgLatencyMs Int @default(0)
+  recentFailureCount Int @default(0)
+  lastError String?
+  lastSuccessAt DateTime?
+  lastFailureAt DateTime?
+  updatedAt DateTime @updatedAt
+  model AIModel @relation(fields: [modelId], references: [id])
+  @@unique([modelId, taskType])
+}
+
+model ModelRouterLog {
+  id String @id @default(cuid())
+  userId String?
+  threadId String?
+  taskType TaskType?
+  promptPreview String?
+  classifierResult Json?
+  selectedProvider String?
+  selectedModel String?
+  fallbackCandidates Json?
+  reason String?
+  estimatedCost Int?
+  safetyDecision Json?
+  finalStatus String @default("selected")
+  errorMessage String?
+  createdAt DateTime @default(now())
+  @@index([createdAt])
+}
+
+model ConversationThread {
+  id String @id @default(cuid())
+  userId String
+  title String
+  type ThreadType @default(chat)
+  pinned Boolean @default(false)
+  archived Boolean @default(false)
+  memorySummary String?
+  styleProfile Json?
+  safetyProfile String @default("safe_default")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id])
+  messages ConversationMessage[]
+  assets GeneratedAsset[]
+  @@index([userId, updatedAt])
+}
+
+model ConversationMessage {
+  id String @id @default(cuid())
+  threadId String
+  userId String
+  role MessageRole
+  taskType TaskType
+  text String?
+  outputType OutputType @default(text)
+  outputUrl String?
+  fileName String?
+  modelProvider String?
+  modelId String?
+  aiUsageId String?
+  metadata Json?
+  createdAt DateTime @default(now())
+  thread ConversationThread @relation(fields: [threadId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+  aiUsage AIUsage? @relation(fields: [aiUsageId], references: [id])
+  assets GeneratedAsset[]
+  @@index([threadId, createdAt])
+}
+
+model GeneratedAsset {
+  id String @id @default(cuid())
+  userId String
+  threadId String
+  messageId String?
+  taskType TaskType
+  assetType AssetType
+  url String
+  prompt String
+  negativePrompt String?
+  styleSeed String?
+  referenceAssetId String?
+  modelProvider String
+  modelId String
+  metadata Json?
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id])
+  thread ConversationThread @relation(fields: [threadId], references: [id])
+  message ConversationMessage? @relation(fields: [messageId], references: [id])
+  @@index([userId, createdAt])
+  @@index([threadId, createdAt])
+}
